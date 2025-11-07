@@ -1,3 +1,6 @@
+> Use the [example/](./example/) folder to run it on iOS or follow the instructions below. If that doesn't work, try running the project from the example directory—it usually helps identify the cause of any issues.
+
+
 ## Installation
 
 - Copy the [XRay.xcframework](./example/ios/XRay.xcframework/) folder and paste it into the iOS folder of your project. 

@@ -1,8 +1,13 @@
 # flutter_vless
+![Pub Version](https://img.shields.io/pub/v/flutter_vless.svg) 
 
-**Flutter plugin to run VLESS/VMESS as a local proxy and VPN on Android and iOS.**
+**Flutter plugin to run VLESS/VMESS as a local proxy and VPN on Android and iOS. V2Ray/Xray core. Shadowsocks, Trojan, Socks 5 support.**
 
-Provides fine-grained routing for domains, sites, and apps, with built-in status tracking, delay testing, and extended configuration options.
+⚡️ Provides fine-grained routing for domains, sites, and apps, with built-in status tracking, delay testing, and extended configuration options.
+
+>  In contrast to similar plugins, we provide both __iOS__ and __Android__ versions out of the box and for free, with the package being fully open-source.
+
+> Make sure to give a like on pub.dev and star on GitHub if this package was useful for you <3
 
 ## Table of contents
 
@@ -162,7 +167,7 @@ Follow the platform steps below — without these the plugin cannot run VPN/Netw
     android:label="@string/app_name"
     android:icon="@mipmap/ic_launcher"
     android:extractNativeLibs="true">
-    ...
+    . . .
 </application>
 
 ```
