@@ -372,6 +372,7 @@ class _HomePageState extends State<HomePage> {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Wrap(
+          spacing: 8,
           children: [
             ElevatedButton.icon(
               onPressed: _showBypassEditor,
