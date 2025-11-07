@@ -16,7 +16,6 @@ topics:
   - vless
   - v2ray
   - xray
-  - proxy
   - vmess
 
 environment:
