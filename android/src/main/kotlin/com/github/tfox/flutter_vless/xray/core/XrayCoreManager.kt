@@ -185,7 +185,9 @@ object XrayCoreManager {
     }
 
     fun isXrayRunning(): Boolean {
-        return xrayProcess?.isAlive == true
+        // Check state instead of process because VPN runs in separate service process
+        return AppConfigs.V2RAY_STATE == AppConfigs.V2RAY_STATES.V2RAY_CONNECTED ||
+               AppConfigs.V2RAY_STATE == AppConfigs.V2RAY_STATES.V2RAY_CONNECTING
     }
 
     private fun startTimer(context: Context) {
@@ -309,10 +311,9 @@ object XrayCoreManager {
     }
 
     fun getConnectedV2rayServerDelay(context: Context, url: String): Long {
-        if (!isXrayRunning()) return -1L
-        
         // Use the configured SOCKS port (default 10807)
         val port = AppConfigs.V2RAY_CONFIG?.LOCAL_SOCKS5_PORT ?: 10807
+        Log.d(TAG, "getConnectedV2rayServerDelay: Testing delay to $url via SOCKS port $port")
         
         return try {
             val start = System.currentTimeMillis()
@@ -321,13 +322,102 @@ object XrayCoreManager {
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
             connection.requestMethod = "HEAD"
-            connection.responseCode
+            val responseCode = connection.responseCode
             val end = System.currentTimeMillis()
+            val delay = end - start
             connection.disconnect()
-            end - start
+            Log.d(TAG, "getConnectedV2rayServerDelay: Success! Response code: $responseCode, Delay: ${delay}ms")
+            delay
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to measure delay", e)
+            Log.e(TAG, "getConnectedV2rayServerDelay: Failed to measure delay (VPN may not be running)", e)
             -1L
+        }
+    }
+
+    /**
+     * Measure delay for a server configuration (when not connected).
+     * Temporarily starts Xray with the provided config, measures delay, then stops it.
+     */
+    fun getServerDelay(context: Context, configJson: String, url: String): Long {
+        Log.d(TAG, "getServerDelay: Starting temporary Xray instance")
+        
+        var tempProcess: Process? = null
+        try {
+            // Parse the config to extract SOCKS port
+            val json = JSONObject(configJson)
+            val inbounds = json.optJSONArray("inbounds")
+            var socksPort = 10807 // default
+            
+            if (inbounds != null) {
+                for (i in 0 until inbounds.length()) {
+                    val inbound = inbounds.getJSONObject(i)
+                    if (inbound.optString("protocol") == "socks") {
+                        socksPort = inbound.optInt("port", 10807)
+                        break
+                    }
+                }
+            }
+            
+            Log.d(TAG, "getServerDelay: Using SOCKS port $socksPort")
+            
+            // Write temp config file
+            val tempConfigFile = File(context.filesDir, "temp_delay_config.json")
+            tempConfigFile.writeText(configJson)
+            
+            // Copy assets
+            Utilities.copyAssets(context)
+            
+            // Start Xray process
+            val xrayExecutable = File(context.applicationInfo.nativeLibraryDir, "libxray.so")
+            if (!xrayExecutable.exists()) {
+                Log.e(TAG, "getServerDelay: Xray executable not found")
+                return -1L
+            }
+            
+            val cmd = listOf(
+                xrayExecutable.absolutePath,
+                "-config", tempConfigFile.absolutePath
+            )
+            
+            val pb = ProcessBuilder(cmd)
+            pb.directory(context.filesDir)
+            val env = pb.environment()
+            env["XRAY_LOCATION_ASSET"] = Utilities.getUserAssetsPath(context)
+            
+            tempProcess = pb.start()
+            
+            // Wait a bit for Xray to start
+            Thread.sleep(1000)
+            
+            // Measure delay
+            val delay = try {
+                val start = System.currentTimeMillis()
+                val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, java.net.InetSocketAddress("127.0.0.1", socksPort))
+                val connection = java.net.URL(url).openConnection(proxy) as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.requestMethod = "HEAD"
+                val responseCode = connection.responseCode
+                val end = System.currentTimeMillis()
+                connection.disconnect()
+                val result = end - start
+                Log.d(TAG, "getServerDelay: Success! Response code: $responseCode, Delay: ${result}ms")
+                result
+            } catch (e: Exception) {
+                Log.e(TAG, "getServerDelay: Failed to measure delay", e)
+                -1L
+            }
+            
+            // Stop temp process
+            tempProcess?.destroy()
+            tempConfigFile.delete()
+            
+            return delay
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "getServerDelay: Error starting temp Xray", e)
+            tempProcess?.destroy()
+            return -1L
         }
     }
 

@@ -127,18 +127,45 @@ class FlutterVlessPlugin : FlutterPlugin, ActivityAware, PluginRegistry.Activity
                 result.success(null)
             }
             "getServerDelay" -> {
-                // Not implemented yet for binary mode
-                result.success(-1L)
-            }
-            "getConnectedServerDelay" -> {
+                android.util.Log.d("FlutterVlessPlugin", "getServerDelay called")
+                val configJson = call.argument<String>("config")
                 val url = call.argument<String>("url") ?: "https://www.google.com"
+                
+                if (configJson == null) {
+                    android.util.Log.e("FlutterVlessPlugin", "getServerDelay: config is null")
+                    result.error("INVALID_CONFIG", "Config is null", null)
+                    return
+                }
+                
                 val currentActivity = activity
                 if (currentActivity == null) {
+                    android.util.Log.e("FlutterVlessPlugin", "getServerDelay: Activity is null")
                     result.error("NO_ACTIVITY", "Activity is null", null)
                     return
                 }
+                
+                android.util.Log.d("FlutterVlessPlugin", "getServerDelay: Testing config with URL: $url")
+                executor.execute {
+                    val delay = XrayCoreManager.getServerDelay(currentActivity, configJson, url)
+                    android.util.Log.d("FlutterVlessPlugin", "getServerDelay: Result: $delay")
+                    currentActivity.runOnUiThread {
+                        result.success(delay)
+                    }
+                }
+            }
+            "getConnectedServerDelay" -> {
+                android.util.Log.d("FlutterVlessPlugin", "getConnectedServerDelay called")
+                val url = call.argument<String>("url") ?: "https://www.google.com"
+                val currentActivity = activity
+                if (currentActivity == null) {
+                    android.util.Log.e("FlutterVlessPlugin", "getConnectedServerDelay: Activity is null")
+                    result.error("NO_ACTIVITY", "Activity is null", null)
+                    return
+                }
+                android.util.Log.d("FlutterVlessPlugin", "getConnectedServerDelay: Testing URL: $url")
                 executor.execute {
                     val delay = XrayCoreManager.getConnectedV2rayServerDelay(currentActivity, url)
+                    android.util.Log.d("FlutterVlessPlugin", "getConnectedServerDelay: Result: $delay")
                     currentActivity.runOnUiThread {
                         result.success(delay)
                     }
