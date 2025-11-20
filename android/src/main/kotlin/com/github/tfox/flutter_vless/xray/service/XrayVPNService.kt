@@ -122,18 +122,19 @@ class XrayVPNService : VpnService() {
         }
     }
 
+
+
     private fun runTun2socks(config: XrayConfig) {
         val tun2socksPath = File(applicationInfo.nativeLibraryDir, "libtun2socks.so").absolutePath
         val sockPath = File(filesDir, "sock_path").absolutePath
+        
+        // Use socket to pass file descriptor
         val cmd = arrayListOf(
             tun2socksPath,
-            "--netif-ipaddr", "26.26.26.2",
-            "--netif-netmask", "255.255.255.252",
-            "--socks-server-addr", "127.0.0.1:${config.LOCAL_SOCKS5_PORT}",
-            "--tunmtu", "1500",
-            "--sock-path", sockPath,
-            "--enable-udprelay",
-            "--loglevel", "debug"
+            "-sock-path", sockPath,
+            "-proxy", "socks5://127.0.0.1:${config.LOCAL_SOCKS5_PORT}",
+            "-mtu", "1500",
+            "-loglevel", "debug"
         )
 
         Log.d(TAG, "tun2socks command: ${cmd.joinToString(" ")}")

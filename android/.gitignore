@@ -7,3 +7,5 @@
 /build
 /captures
 .cxx
+/Xray-core
+/tun2socks-go
