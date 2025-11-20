@@ -150,6 +150,8 @@ object XrayCoreManager {
                         // Unexpected exit
                         stopCore(context)
                     }
+                } catch (e: java.io.InterruptedIOException) {
+                    // Expected when stopping
                 } catch (e: InterruptedException) {
                     // Expected when stopping
                 } catch (e: Exception) {
@@ -195,17 +197,65 @@ object XrayCoreManager {
                 val intent = Intent(AppConfigs.V2RAY_CONNECTION_INFO)
                 intent.putExtra("STATE", AppConfigs.V2RAY_STATE)
                 intent.putExtra("DURATION", seconds.toString())
-                // Traffic stats would need to be queried from Xray API/Stats port
-                // For now sending 0
-                intent.putExtra("UPLOAD_SPEED", 0L)
-                intent.putExtra("DOWNLOAD_SPEED", 0L)
-                intent.putExtra("UPLOAD_TRAFFIC", 0L)
-                intent.putExtra("DOWNLOAD_TRAFFIC", 0L)
+                
+                val traffic = getV2rayTraffic(context)
+                intent.putExtra("UPLOAD_SPEED", traffic[0])
+                intent.putExtra("DOWNLOAD_SPEED", traffic[1])
+                intent.putExtra("UPLOAD_TRAFFIC", traffic[2])
+                intent.putExtra("DOWNLOAD_TRAFFIC", traffic[3])
+                
                 context.sendBroadcast(intent)
             }
 
             override fun onFinish() {}
         }.start()
+    }
+
+    fun getV2rayTraffic(context: Context): LongArray {
+        if (!isXrayRunning()) return longArrayOf(0, 0, 0, 0)
+
+        val xrayPath = File(context.applicationInfo.nativeLibraryDir, "libxray.so").absolutePath
+        val cmd = arrayListOf(
+            xrayPath,
+            "api",
+            "statsquery",
+            "--server=127.0.0.1:${AppConfigs.V2RAY_CONFIG?.LOCAL_API_PORT ?: 10809}",
+            "--pattern", ""
+        )
+
+        try {
+            val pb = ProcessBuilder(cmd)
+            val process = pb.start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+
+            if (output.isNotEmpty()) {
+                Log.d(TAG, "Stats query output: $output")
+                val json = JSONObject(output)
+                val stats = json.optJSONArray("stat") ?: return longArrayOf(0, 0, 0, 0)
+
+                var uplink = 0L
+                var downlink = 0L
+
+                for (i in 0 until stats.length()) {
+                    val stat = stats.getJSONObject(i)
+                    val name = stat.optString("name")
+                    val value = stat.optLong("value")
+
+                    if (name.contains("uplink")) {
+                        uplink += value
+                    } else if (name.contains("downlink")) {
+                        downlink += value
+                    }
+                }
+                return longArrayOf(uplink, downlink, uplink, downlink) 
+            } else {
+                Log.d(TAG, "Stats query returned empty output")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to query stats", e)
+        }
+        return longArrayOf(0, 0, 0, 0)
     }
 
     private fun stopTimer() {

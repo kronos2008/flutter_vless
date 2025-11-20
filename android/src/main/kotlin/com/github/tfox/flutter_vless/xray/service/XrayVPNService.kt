@@ -158,6 +158,8 @@ class XrayVPNService : VpnService() {
                         Log.e(TAG, "tun2socks exited unexpectedly, restarting...")
                         runTun2socks(config)
                     }
+                } catch (e: java.io.InterruptedIOException) {
+                    // Expected when stopping
                 } catch (e: InterruptedException) {
                 } catch (e: Exception) {
                     Log.e(TAG, "Error reading tun2socks output", e)
