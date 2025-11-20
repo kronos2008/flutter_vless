@@ -51,6 +51,9 @@ build_xray() {
     export CC="${TOOLCHAIN}/bin/${ANDROID_TARGET}-clang"
     export CXX="${TOOLCHAIN}/bin/${ANDROID_TARGET}-clang++"
     
+    # 16KB page size support for Android 15+
+    export LDFLAGS="-Wl,-z,max-page-size=16384"
+    
     # Verify compiler exists
     if [ ! -f "$CC" ]; then
         echo "Error: Compiler not found at $CC"
@@ -61,7 +64,8 @@ build_xray() {
 
     cd Xray-core
     
-    go build -v -trimpath -ldflags "-s -w -buildid=" -buildmode=pie -o "../${OUTPUT_DIR}/libxray.so" ./main
+    # Build with 16KB page alignment
+    go build -v -trimpath -ldflags "-s -w -buildid= -linkmode=external -extldflags '${LDFLAGS}'" -buildmode=pie -o "../${OUTPUT_DIR}/libxray.so" ./main
     
     if [ $? -eq 0 ]; then
         echo "Success: ${OUTPUT_DIR}/libxray.so created."
