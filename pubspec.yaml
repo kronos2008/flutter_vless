@@ -42,7 +42,7 @@ flutter:
     platforms:
       android:
         package: com.github.tfox.flutter_vless
-        pluginClass: FlutterV2rayPlugin
+        pluginClass: FlutterVlessPlugin
       ios:
         pluginClass: FlutterVlessPlugin
 

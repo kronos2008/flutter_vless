@@ -1,0 +1,297 @@
+package com.github.tfox.flutter_vless.xray.core
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.os.Build
+import android.os.CountDownTimer
+import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import com.github.tfox.flutter_vless.xray.dto.XrayConfig
+import com.github.tfox.flutter_vless.xray.service.XrayVPNService
+import com.github.tfox.flutter_vless.xray.utils.AppConfigs
+import com.github.tfox.flutter_vless.xray.utils.Utilities
+import org.json.JSONObject
+import org.json.JSONArray
+import java.io.File
+import java.io.FileOutputStream
+
+object XrayCoreManager {
+
+    private const val NOTIFICATION_ID = 1
+    private const val TAG = "XrayCoreManager"
+    private var xrayProcess: Process? = null
+    private var countDownTimer: CountDownTimer? = null
+    private var seconds = 0
+
+    fun startCore(context: Service, config: XrayConfig): Boolean {
+        AppConfigs.V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTING
+        AppConfigs.V2RAY_CONFIG = config
+
+        // 1. Write config to file
+        val configFilesDir = context.filesDir
+            // Inject API and Stats configuration
+            val configJson = JSONObject(config.V2RAY_FULL_JSON_CONFIG)
+            
+            // 1. Add API section
+            val apiObj = JSONObject()
+            apiObj.put("tag", "api")
+            val servicesArr = org.json.JSONArray()
+            servicesArr.put("StatsService")
+            apiObj.put("services", servicesArr)
+            configJson.put("api", apiObj)
+            
+            // 2. Add Stats section
+            configJson.put("stats", JSONObject())
+            
+            // 3. Add Policy section
+            val policyObj = JSONObject()
+            val levelsObj = JSONObject()
+            val level8Obj = JSONObject()
+            level8Obj.put("statsUserUplink", true)
+            level8Obj.put("statsUserDownlink", true)
+            levelsObj.put("8", level8Obj)
+            
+            val systemObj = JSONObject()
+            systemObj.put("statsInboundUplink", true)
+            systemObj.put("statsInboundDownlink", true)
+            systemObj.put("statsOutboundUplink", true)
+            systemObj.put("statsOutboundDownlink", true)
+            
+            policyObj.put("levels", levelsObj)
+            policyObj.put("system", systemObj)
+            configJson.put("policy", policyObj)
+            
+            // 4. Add API Inbound
+            val inbounds = configJson.optJSONArray("inbounds") ?: org.json.JSONArray()
+            val apiInbound = JSONObject()
+            apiInbound.put("tag", "api")
+            apiInbound.put("port", config.LOCAL_API_PORT)
+            apiInbound.put("listen", "127.0.0.1")
+            apiInbound.put("protocol", "dokodemo-door")
+            val settings = JSONObject()
+            settings.put("address", "127.0.0.1")
+            apiInbound.put("settings", settings)
+            inbounds.put(apiInbound)
+            configJson.put("inbounds", inbounds)
+            
+            // 5. Add Routing Rule for API
+            val routing = configJson.optJSONObject("routing") ?: JSONObject()
+            val rules = routing.optJSONArray("rules") ?: org.json.JSONArray()
+            val apiRule = JSONObject()
+            apiRule.put("type", "field")
+            apiRule.put("inboundTag", org.json.JSONArray().put("api"))
+            apiRule.put("outboundTag", "api")
+            rules.put(apiRule)
+            routing.put("rules", rules)
+            configJson.put("routing", routing)
+
+            val configFile = File(context.filesDir, "config.json")
+        try {
+            configFile.writeText(configJson.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write config file", e)
+            return false
+        }
+
+        // 2. Find Xray executable (libxray.so)
+        val nativeLibraryDir = context.applicationInfo.nativeLibraryDir
+        val xrayExecutable = File(nativeLibraryDir, "libxray.so")
+        if (!xrayExecutable.exists()) {
+            Log.e(TAG, "Xray executable not found at ${xrayExecutable.absolutePath}")
+            // Fallback or error
+            return false
+        }
+
+        // 3. Prepare assets (geoip, geosite)
+        Utilities.copyAssets(context)
+
+        // 4. Run Xray
+        try {
+            val cmd = listOf(
+                xrayExecutable.absolutePath,
+                "-config", configFile.absolutePath
+            )
+            val pb = ProcessBuilder(cmd)
+            pb.directory(configFilesDir)
+            // Redirect output to logcat or ignore
+            // pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            // pb.redirectError(ProcessBuilder.Redirect.INHERIT)
+            
+            // Set environment variables if needed (e.g. XRAY_LOCATION_ASSET)
+            val env = pb.environment()
+            env["XRAY_LOCATION_ASSET"] = Utilities.getUserAssetsPath(context)
+
+            xrayProcess = pb.start()
+            
+            AppConfigs.V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED
+            startTimer(context)
+            showNotification(context, config)
+            
+            // Monitor process in a separate thread to detect crash
+            Thread {
+                try {
+                    xrayProcess?.inputStream?.bufferedReader()?.use { reader ->
+                        reader.forEachLine { line ->
+                            Log.d(TAG, "xray: $line")
+                        }
+                    }
+                    
+                    val exitCode = xrayProcess?.waitFor()
+                    Log.e(TAG, "Xray process exited with code $exitCode")
+                    if (AppConfigs.V2RAY_STATE == AppConfigs.V2RAY_STATES.V2RAY_CONNECTED) {
+                        // Unexpected exit
+                        stopCore(context)
+                    }
+                } catch (e: InterruptedException) {
+                    // Expected when stopping
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reading xray output", e)
+                }
+            }.start()
+
+            return true
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start Xray process", e)
+            return false
+        }
+    }
+
+    fun stopCore(context: Service) {
+        try {
+            xrayProcess?.destroy()
+            xrayProcess = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to destroy Xray process", e)
+        }
+
+        AppConfigs.V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_DISCONNECTED
+        stopTimer()
+        
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(NOTIFICATION_ID)
+        
+        sendDisconnectedBroadcast(context)
+    }
+
+    fun isXrayRunning(): Boolean {
+        return xrayProcess?.isAlive == true
+    }
+
+    private fun startTimer(context: Context) {
+        countDownTimer?.cancel()
+        seconds = 0
+        countDownTimer = object : CountDownTimer(Long.MAX_VALUE, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                seconds++
+                val intent = Intent(AppConfigs.V2RAY_CONNECTION_INFO)
+                intent.putExtra("STATE", AppConfigs.V2RAY_STATE)
+                intent.putExtra("DURATION", seconds.toString())
+                // Traffic stats would need to be queried from Xray API/Stats port
+                // For now sending 0
+                intent.putExtra("UPLOAD_SPEED", 0L)
+                intent.putExtra("DOWNLOAD_SPEED", 0L)
+                intent.putExtra("UPLOAD_TRAFFIC", 0L)
+                intent.putExtra("DOWNLOAD_TRAFFIC", 0L)
+                context.sendBroadcast(intent)
+            }
+
+            override fun onFinish() {}
+        }.start()
+    }
+
+    private fun stopTimer() {
+        countDownTimer?.cancel()
+        countDownTimer = null
+        seconds = 0
+    }
+
+    private fun sendDisconnectedBroadcast(context: Context) {
+        val intent = Intent(AppConfigs.V2RAY_CONNECTION_INFO)
+        intent.putExtra("STATE", AppConfigs.V2RAY_STATES.V2RAY_DISCONNECTED)
+        intent.putExtra("DURATION", "0")
+        intent.putExtra("UPLOAD_SPEED", 0L)
+        intent.putExtra("DOWNLOAD_SPEED", 0L)
+        intent.putExtra("UPLOAD_TRAFFIC", 0L)
+        intent.putExtra("DOWNLOAD_TRAFFIC", 0L)
+        context.sendBroadcast(intent)
+    }
+
+    private fun showNotification(context: Service, config: XrayConfig) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
+        val channelId = createNotificationChannel(context, config.APPLICATION_NAME)
+        
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        launchIntent?.action = "FROM_DISCONNECT_BTN"
+        launchIntent?.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+        
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
+        val contentPendingIntent = PendingIntent.getActivity(context, 0, launchIntent, flags)
+
+        val stopIntent = Intent(context, XrayVPNService::class.java)
+        stopIntent.putExtra("COMMAND", AppConfigs.V2RAY_SERVICE_COMMANDS.STOP_SERVICE)
+        val stopPendingIntent = PendingIntent.getService(context, 0, stopIntent, flags)
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(config.APPLICATION_ICON) // Ensure this icon resource exists or is passed correctly
+            .setContentTitle(config.REMARK)
+            .setContentText("Connected")
+            .addAction(0, config.NOTIFICATION_DISCONNECT_BUTTON_NAME, stopPendingIntent)
+            .setContentIntent(contentPendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .setShowWhen(true)
+
+        context.startForeground(NOTIFICATION_ID, builder.build())
+    }
+
+    fun getConnectedV2rayServerDelay(context: Context, url: String): Long {
+        if (!isXrayRunning()) return -1L
+        
+        // Use the configured SOCKS port (default 10807)
+        val port = AppConfigs.V2RAY_CONFIG?.LOCAL_SOCKS5_PORT ?: 10807
+        
+        return try {
+            val start = System.currentTimeMillis()
+            val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, java.net.InetSocketAddress("127.0.0.1", port))
+            val connection = java.net.URL(url).openConnection(proxy) as java.net.HttpURLConnection
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.requestMethod = "HEAD"
+            connection.responseCode
+            val end = System.currentTimeMillis()
+            connection.disconnect()
+            end - start
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to measure delay", e)
+            -1L
+        }
+    }
+
+    private fun createNotificationChannel(context: Context, appName: String): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelId = "XRAY_SERVICE_CHANNEL"
+            val channelName = "$appName Background Service"
+            val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT)
+            channel.lightColor = Color.BLUE
+            channel.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+            return channelId
+        }
+        return ""
+    }
+}
