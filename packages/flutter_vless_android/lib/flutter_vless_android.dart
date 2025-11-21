@@ -2,20 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_vless_platform_interface/flutter_vless_platform_interface.dart';
 
-export 'flutter_vless_android_loader.dart';
-
-// Auto-register this platform implementation when imported
-final _ = (() {
-  VlessPlatform.instance = FlutterVlessAndroid();
-  return null;
-})();
-
 /// Android implementation of [VlessPlatform] using MethodChannel.
 class FlutterVlessAndroid extends VlessPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel('flutter_vless');
-  
+
   /// The event channel for status updates.
   final eventChannel = const EventChannel('flutter_vless/status');
 
@@ -45,7 +37,7 @@ class FlutterVlessAndroid extends VlessPlatform {
         ));
       }
     });
-    
+
     await methodChannel.invokeMethod(
       'initializeVless',
       {
