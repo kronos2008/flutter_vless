@@ -94,10 +94,10 @@ build_tun2socks "arm64-v8a" "arm64" "" "aarch64-linux-android21"
 # ARMv7
 build_tun2socks "armeabi-v7a" "arm" "7" "armv7a-linux-androideabi21"
 
-# x86
-build_tun2socks "x86" "386" "" "i686-linux-android21"
+# x86 (Disabled to save size - legacy 32-bit emulator)
+# build_tun2socks "x86" "386" "" "i686-linux-android21"
 
-# x86_64
+# x86_64 (Modern 64-bit emulator)
 build_tun2socks "x86_64" "amd64" "" "x86_64-linux-android21"
 
 echo ""
