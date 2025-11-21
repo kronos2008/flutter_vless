@@ -25,7 +25,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  plugin_platform_interface: ^2.1.8
+  flutter_vless_platform_interface: ^1.0.0
+  flutter_vless_android: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -41,8 +42,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: com.github.tfox.flutter_vless
-        pluginClass: FlutterVlessPlugin
+        default_package: flutter_vless_android
       ios:
         pluginClass: FlutterVlessPlugin
 

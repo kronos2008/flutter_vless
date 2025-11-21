@@ -1,10 +1,14 @@
 ## 1.0.2
 
-* feat: Support for Android 16KB page size (API 35+)
+*   **Refactor**: Migrated to a Federated Plugin architecture.
+    *   Split into `flutter_vless` (app-facing), `flutter_vless_platform_interface` (common), and `flutter_vless_android` (Android implementation).
+    *   This structure improves maintainability.
 
-* feat: Migration to Kotlin
+*   **Android**:
+    *   **Migration to Kotlin**: Complete rewrite of Android native code from Java to Kotlin.
+    *   **16KB Page Size**: Added support for Android devices with 16KB page sizes (API 35+).
 
-* docs: Added comprehensive documentation to Android native code
+*   **Docs**: Added comprehensive documentation to Android native code.
 
 ## 1.0.1
 
