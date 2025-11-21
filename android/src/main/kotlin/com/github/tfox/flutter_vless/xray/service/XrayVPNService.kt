@@ -47,11 +47,18 @@ class XrayVPNService : VpnService() {
             }
 
             if (config != null) {
-                if (XrayCoreManager.isXrayRunning()) {
-                    XrayCoreManager.stopCore(this)
-                }
+                cleanup()
+                
+                val proxyOnly = intent.getBooleanExtra("PROXY_ONLY", false)
+                
                 if (XrayCoreManager.startCore(this, config)) {
-                    setupVpn(config)
+                    if (!proxyOnly) {
+                        setupVpn(config)
+                    } else {
+                        // Proxy Only Mode
+                        isRunning = true
+                        Log.d(TAG, "Starting in PROXY_ONLY mode")
+                    }
                 } else {
                     stopSelf()
                 }
@@ -200,7 +207,7 @@ class XrayVPNService : VpnService() {
         }.start()
     }
 
-    private fun stopAll() {
+    private fun cleanup() {
         isRunning = false
         tun2socksProcess?.destroy()
         tun2socksProcess = null
@@ -208,7 +215,10 @@ class XrayVPNService : VpnService() {
             mInterface?.close()
             mInterface = null
         } catch (e: Exception) {}
-        
+    }
+
+    private fun stopAll() {
+        cleanup()
         XrayCoreManager.stopCore(this)
         stopForeground(true)
         stopSelf()

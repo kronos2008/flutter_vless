@@ -52,7 +52,7 @@ chmod +x build_tun2socks.sh
 
 TUN2SOCKS_REPO="https://github.com/xjasonlyu/tun2socks"
 TARGET_DIR="src/main/jniLibs"
-NDK_PATH="${ANDROID_NDK_HOME:-/Users/vladislavponomarev/Library/Android/sdk/ndk/27.0.12077973}"
+NDK_PATH="${ANDROID_NDK_HOME:-/Users/vladislav/Library/Android/sdk/ndk/27.0.12077973}"
 TOOLCHAIN="${NDK_PATH}/toolchains/llvm/prebuilt/darwin-x86_64"
 
 if [ ! -d "tun2socks-go" ]; then
