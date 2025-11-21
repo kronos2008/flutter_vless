@@ -23,6 +23,16 @@ import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
 
+/**
+ * Manages the Xray Core process (libxray.so).
+ * 
+ * This singleton object is responsible for:
+ * 1. Generating the final Xray configuration file (config.json).
+ * 2. Injecting necessary inbounds (SOCKS, HTTP, API) into the user-provided config.
+ * 3. Starting and monitoring the Xray process.
+ * 4. Collecting traffic statistics via the Xray API.
+ * 5. Showing the persistent foreground notification.
+ */
 object XrayCoreManager {
 
     private const val NOTIFICATION_ID = 1
@@ -31,16 +41,31 @@ object XrayCoreManager {
     private var countDownTimer: CountDownTimer? = null
     private var seconds = 0
 
+    /**
+     * Starts the Xray Core process.
+     * 
+     * @param context The service context (needed for file access and notifications).
+     * @param config The configuration object containing the user's settings.
+     * @return true if started successfully, false otherwise.
+     */
     fun startCore(context: Service, config: XrayConfig): Boolean {
         AppConfigs.V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTING
         AppConfigs.V2RAY_CONFIG = config
 
-        // 1. Write config to file
+        // 1. Prepare the configuration file
         val configFilesDir = context.filesDir
-            // Inject API and Stats configuration
+        
+        try {
+            // Parse the user-provided JSON config
             val configJson = JSONObject(config.V2RAY_FULL_JSON_CONFIG)
             
-            // 1. Add API section
+            // --- Configuration Injection ---
+            // We need to inject several things into the config to make it work with our app:
+            // 1. API Service (for stats)
+            // 2. SOCKS/HTTP Inbounds (for local proxying)
+            // 3. Routing rules (to route API traffic)
+
+            // 1. Add API section (StatsService)
             val apiObj = JSONObject()
             apiObj.put("tag", "api")
             val servicesArr = org.json.JSONArray()
@@ -51,7 +76,7 @@ object XrayCoreManager {
             // 2. Add Stats section
             configJson.put("stats", JSONObject())
             
-            // 3. Add Policy section
+            // 3. Add Policy section (enable stats for all levels)
             val policyObj = JSONObject()
             val levelsObj = JSONObject()
             val level8Obj = JSONObject()
@@ -69,10 +94,10 @@ object XrayCoreManager {
             policyObj.put("system", systemObj)
             configJson.put("policy", policyObj)
             
-            // 4. Add API Inbound
+            // 4. Add Inbounds (SOCKS, HTTP, API)
             val inbounds = configJson.optJSONArray("inbounds") ?: org.json.JSONArray()
             
-            // Check if SOCKS inbound exists
+            // Check if SOCKS/HTTP inbounds already exist in the user config
             var hasSocks = false
             var hasHttp = false
             for (i in 0 until inbounds.length()) {
@@ -82,7 +107,7 @@ object XrayCoreManager {
                 if (protocol == "http") hasHttp = true
             }
 
-            // Inject SOCKS inbound if missing
+            // Inject SOCKS inbound if missing (Required for tun2socks and Proxy Mode)
             if (!hasSocks) {
                 val socksInbound = JSONObject()
                 socksInbound.put("tag", "socks")
@@ -98,7 +123,7 @@ object XrayCoreManager {
                 Log.d(TAG, "Injected SOCKS inbound on port ${config.LOCAL_SOCKS5_PORT}")
             }
 
-            // Inject HTTP inbound if missing
+            // Inject HTTP inbound if missing (Useful for Proxy Mode)
             if (!hasHttp) {
                 val httpInbound = JSONObject()
                 httpInbound.put("tag", "http")
@@ -109,6 +134,7 @@ object XrayCoreManager {
                 Log.d(TAG, "Injected HTTP inbound on port ${config.LOCAL_HTTP_PORT}")
             }
 
+            // Inject API Inbound (dokodemo-door) for stats querying
             val apiInbound = JSONObject()
             apiInbound.put("tag", "api")
             apiInbound.put("port", config.LOCAL_API_PORT)
@@ -131,8 +157,8 @@ object XrayCoreManager {
             routing.put("rules", rules)
             configJson.put("routing", routing)
 
+            // Write the final config to disk
             val configFile = File(context.filesDir, "config.json")
-        try {
             configFile.writeText(configJson.toString())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to write config file", e)
@@ -155,7 +181,7 @@ object XrayCoreManager {
         try {
             val cmd = listOf(
                 xrayExecutable.absolutePath,
-                "-config", configFile.absolutePath
+                "-config", File(configFilesDir, "config.json").absolutePath
             )
             val pb = ProcessBuilder(cmd)
             pb.directory(configFilesDir)
@@ -163,7 +189,7 @@ object XrayCoreManager {
             // pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
             // pb.redirectError(ProcessBuilder.Redirect.INHERIT)
             
-            // Set environment variables if needed (e.g. XRAY_LOCATION_ASSET)
+            // Set environment variables (XRAY_LOCATION_ASSET is crucial for finding geoip/geosite)
             val env = pb.environment()
             env["XRAY_LOCATION_ASSET"] = Utilities.getUserAssetsPath(context)
 
@@ -205,6 +231,9 @@ object XrayCoreManager {
         }
     }
 
+    /**
+     * Stops the Xray Core process and cleans up notifications.
+     */
     fun stopCore(context: Service) {
         try {
             xrayProcess?.destroy()
@@ -251,6 +280,10 @@ object XrayCoreManager {
         }.start()
     }
 
+    /**
+     * Queries Xray API for traffic statistics.
+     * Returns [uploadSpeed, downloadSpeed, totalUpload, totalDownload]
+     */
     fun getV2rayTraffic(context: Context): LongArray {
         if (!isXrayRunning()) return longArrayOf(0, 0, 0, 0)
 

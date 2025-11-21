@@ -15,6 +15,20 @@ import java.io.File
 import java.io.FileDescriptor
 import java.util.ArrayList
 
+/**
+ * Android VPN Service implementation.
+ * 
+ * This service is responsible for:
+ * 1. Establishing the VPN interface (TUN device) using Android's VpnService API.
+ * 2. Managing the `tun2socks` process, which routes traffic from the TUN device to the SOCKS proxy.
+ * 3. Handling the lifecycle of the VPN connection (start, stop, cleanup).
+ * 4. Supporting "Proxy Only" mode where VPN is skipped.
+ * 
+ * Key Technical Detail:
+ * To support Android 15 (16KB page size) and avoid "bad file descriptor" errors, we use a custom
+ * mechanism to pass the TUN file descriptor to `tun2socks`. Instead of passing it via command line
+ * (which fails across process boundaries), we send it over a Unix Domain Socket.
+ */
 class XrayVPNService : VpnService() {
 
     private var mInterface: ParcelFileDescriptor? = null
@@ -31,6 +45,7 @@ class XrayVPNService : VpnService() {
             return START_NOT_STICKY
         }
 
+        // 1. Parse the command (START or STOP)
         val command = if (Build.VERSION.SDK_INT >= 33) {
             intent.getSerializableExtra("COMMAND", AppConfigs.V2RAY_SERVICE_COMMANDS::class.java)
         } else {
@@ -47,15 +62,19 @@ class XrayVPNService : VpnService() {
             }
 
             if (config != null) {
+                // Ensure clean state before starting
                 cleanup()
                 
+                // Check if we should run in Proxy Only mode (no VPN interface)
                 val proxyOnly = intent.getBooleanExtra("PROXY_ONLY", false)
                 
+                // Start the Xray Core (SOCKS/HTTP proxy)
                 if (XrayCoreManager.startCore(this, config)) {
                     if (!proxyOnly) {
+                        // If not proxy-only, establish the VPN interface and start tun2socks
                         setupVpn(config)
                     } else {
-                        // Proxy Only Mode
+                        // Proxy Only Mode: Just mark as running
                         isRunning = true
                         Log.d(TAG, "Starting in PROXY_ONLY mode")
                     }
@@ -70,6 +89,9 @@ class XrayVPNService : VpnService() {
         return START_STICKY
     }
 
+    /**
+     * Establishes the VPN interface (TUN) and starts tun2socks.
+     */
     private fun setupVpn(config: XrayConfig) {
         try {
             if (mInterface != null) {
@@ -93,7 +115,7 @@ class XrayVPNService : VpnService() {
                 Log.e(TAG, "Failed to exclude app from VPN", e)
             }
 
-            // Add routes
+            // Add routes to exclude the server IP (to prevent routing loop)
             val serverIp = config.CONNECTED_V2RAY_SERVER_ADDRESS
             if (serverIp.isNotEmpty() && !serverIp.contains(":")) { // Simple check for IPv4
                  try {
@@ -111,7 +133,7 @@ class XrayVPNService : VpnService() {
                 builder.addRoute("0.0.0.0", 0)
             }
 
-            // DNS
+            // Add DNS servers
             try {
                 builder.addDnsServer("8.8.8.8")
                 builder.addDnsServer("1.1.1.1")
@@ -119,8 +141,11 @@ class XrayVPNService : VpnService() {
                 // ignore
             }
 
+            // Establish the VPN interface
             mInterface = builder.establish()
             isRunning = true
+            
+            // Start tun2socks to handle the traffic
             runTun2socks(config)
 
         } catch (e: Exception) {
@@ -129,13 +154,15 @@ class XrayVPNService : VpnService() {
         }
     }
 
-
-
+    /**
+     * Starts the tun2socks process and initiates the FD transfer.
+     */
     private fun runTun2socks(config: XrayConfig) {
         val tun2socksPath = File(applicationInfo.nativeLibraryDir, "libtun2socks.so").absolutePath
         val sockPath = File(filesDir, "sock_path").absolutePath
         
-        // Use socket to pass file descriptor
+        // Command to start tun2socks. 
+        // Note: We pass -sock-path to tell it where to listen for the FD.
         val cmd = arrayListOf(
             tun2socksPath,
             "-sock-path", sockPath,
@@ -152,6 +179,7 @@ class XrayVPNService : VpnService() {
             pb.directory(filesDir)
             tun2socksProcess = pb.start()
 
+            // Read tun2socks output in a separate thread
             Thread {
                 try {
                     tun2socksProcess?.inputStream?.bufferedReader()?.use { reader ->
@@ -174,6 +202,7 @@ class XrayVPNService : VpnService() {
                 }
             }.start()
 
+            // Send the TUN file descriptor to tun2socks via socket
             sendFd()
 
         } catch (e: Exception) {
@@ -182,6 +211,11 @@ class XrayVPNService : VpnService() {
         }
     }
 
+    /**
+     * Sends the TUN interface file descriptor to the running tun2socks process.
+     * This uses a Unix Domain Socket to pass the FD, which is required because
+     * ProcessBuilder cannot inherit FDs on Android.
+     */
     private fun sendFd() {
         val fd = mInterface?.fileDescriptor ?: return
         val sockFile = File(filesDir, "sock_path").absolutePath
@@ -194,8 +228,9 @@ class XrayVPNService : VpnService() {
                     val localSocket = LocalSocket()
                     localSocket.connect(LocalSocketAddress(sockFile, LocalSocketAddress.Namespace.FILESYSTEM))
                     val out = localSocket.outputStream
+                    // This magic call attaches the FD to the socket message
                     localSocket.setFileDescriptorsForSend(arrayOf(fd))
-                    out.write(32)
+                    out.write(32) // Send a dummy byte to trigger the transfer
                     localSocket.setFileDescriptorsForSend(null)
                     localSocket.shutdownOutput()
                     localSocket.close()
@@ -207,6 +242,10 @@ class XrayVPNService : VpnService() {
         }.start()
     }
 
+    /**
+     * Cleans up resources (tun2socks process, VPN interface) without stopping the service completely.
+     * Used when restarting or switching configurations.
+     */
     private fun cleanup() {
         isRunning = false
         tun2socksProcess?.destroy()
@@ -217,6 +256,9 @@ class XrayVPNService : VpnService() {
         } catch (e: Exception) {}
     }
 
+    /**
+     * Stops everything: tun2socks, VPN interface, and Xray Core.
+     */
     private fun stopAll() {
         cleanup()
         XrayCoreManager.stopCore(this)
@@ -229,6 +271,10 @@ class XrayVPNService : VpnService() {
         super.onDestroy()
     }
 
+    /**
+     * Calculates routes to exclude a specific IP address from the VPN.
+     * This is done by splitting the 0.0.0.0/0 route into smaller subnets that cover everything EXCEPT the target IP.
+     */
     private fun excludeIp(ip: String): List<String> {
         val parts = ip.split(".").map { it.toInt() }
         val ipLong = (parts[0].toLong() shl 24) + (parts[1].toLong() shl 16) + (parts[2].toLong() shl 8) + parts[3].toLong()
@@ -236,12 +282,6 @@ class XrayVPNService : VpnService() {
         val routes = ArrayList<String>()
         var start = 0L
         var end = 4294967295L // 255.255.255.255
-        
-        // We want to cover [0, ipLong - 1] and [ipLong + 1, end]
-        // But wait, VpnService routes are prefixes.
-        // A simpler approach for a single IP exclusion:
-        // Add 0.0.0.0/1 and 128.0.0.0/1. One of them contains the IP.
-        // Recurse on the one that contains the IP.
         
         fun addRoutesExcluding(target: Long, current: Long, prefix: Int) {
             if (prefix >= 32) return
