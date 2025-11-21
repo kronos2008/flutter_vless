@@ -71,6 +71,44 @@ object XrayCoreManager {
             
             // 4. Add API Inbound
             val inbounds = configJson.optJSONArray("inbounds") ?: org.json.JSONArray()
+            
+            // Check if SOCKS inbound exists
+            var hasSocks = false
+            var hasHttp = false
+            for (i in 0 until inbounds.length()) {
+                val inbound = inbounds.getJSONObject(i)
+                val protocol = inbound.optString("protocol")
+                if (protocol == "socks") hasSocks = true
+                if (protocol == "http") hasHttp = true
+            }
+
+            // Inject SOCKS inbound if missing
+            if (!hasSocks) {
+                val socksInbound = JSONObject()
+                socksInbound.put("tag", "socks")
+                socksInbound.put("port", config.LOCAL_SOCKS5_PORT)
+                socksInbound.put("listen", "127.0.0.1")
+                socksInbound.put("protocol", "socks")
+                val settings = JSONObject()
+                settings.put("auth", "noauth")
+                settings.put("udp", true)
+                socksInbound.put("settings", settings)
+                socksInbound.put("sniffing", JSONObject().put("enabled", true).put("destOverride", JSONArray().put("http").put("tls")))
+                inbounds.put(socksInbound)
+                Log.d(TAG, "Injected SOCKS inbound on port ${config.LOCAL_SOCKS5_PORT}")
+            }
+
+            // Inject HTTP inbound if missing
+            if (!hasHttp) {
+                val httpInbound = JSONObject()
+                httpInbound.put("tag", "http")
+                httpInbound.put("port", config.LOCAL_HTTP_PORT)
+                httpInbound.put("listen", "127.0.0.1")
+                httpInbound.put("protocol", "http")
+                inbounds.put(httpInbound)
+                Log.d(TAG, "Injected HTTP inbound on port ${config.LOCAL_HTTP_PORT}")
+            }
+
             val apiInbound = JSONObject()
             apiInbound.put("tag", "api")
             apiInbound.put("port", config.LOCAL_API_PORT)
