@@ -1,7 +1,7 @@
 name: flutter_vless_android_emulator
 description: "A new Flutter plugin project."
 version: 0.0.1
-homepage:
+homepage: https://github.com/XIIIFOX/flutter_vless/
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
