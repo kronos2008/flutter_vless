@@ -50,6 +50,8 @@ android/local.properties
 ios/Pods/
 ios/Flutter/ephemeral/
 
+packages/
+
 # big native libs and datasets - adjust paths to your tree
 # android/src/main/jniLibs/**
 # android/src/main/assets/**
