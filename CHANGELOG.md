@@ -1,3 +1,11 @@
+## 1.0.2
+
+* feat: Support for Android 16KB page size (API 35+)
+
+* feat: Migration to Kotlin
+
+* docs: Added comprehensive documentation to Android native code
+
 ## 1.0.1
 
 * feat: upgrade xray version and update documentation
