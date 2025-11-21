@@ -1,5 +1,5 @@
 name: flutter_vless_android_emulator
-description: "A new Flutter plugin project."
+description: "Android x86_64/x86 binaries for flutter_vless plugin. Required for emulator support."
 version: 1.0.0
 homepage: https://github.com/XIIIFOX/flutter_vless/
 
