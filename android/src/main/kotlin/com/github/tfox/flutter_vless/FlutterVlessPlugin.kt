@@ -72,6 +72,18 @@ class FlutterVlessPlugin : FlutterPlugin, ActivityAware, PluginRegistry.Activity
                 config.BYPASS_SUBNETS = call.argument<ArrayList<String>>("bypass_subnets") ?: ArrayList()
                 config.NOTIFICATION_DISCONNECT_BUTTON_NAME = call.argument("notificationDisconnectButtonName") ?: "Disconnect"
                 
+                // Use stored icon resources if available
+                if (AppConfigs.NOTIFICATION_ICON_RESOURCE_NAME.isNotEmpty() && AppConfigs.NOTIFICATION_ICON_RESOURCE_TYPE.isNotEmpty()) {
+                    config.NOTIFICATION_ICON_RESOURCE_NAME = AppConfigs.NOTIFICATION_ICON_RESOURCE_NAME
+                    config.NOTIFICATION_ICON_RESOURCE_TYPE = AppConfigs.NOTIFICATION_ICON_RESOURCE_TYPE
+                    val resId = context.resources.getIdentifier(
+                        AppConfigs.NOTIFICATION_ICON_RESOURCE_NAME, 
+                        AppConfigs.NOTIFICATION_ICON_RESOURCE_TYPE, 
+                        context.packageName
+                    )
+                    config.APPLICATION_ICON = resId
+                }
+
                 if (call.argument<Boolean>("proxy_only") == true) {
                     AppConfigs.V2RAY_CONNECTION_MODE = AppConfigs.V2RAY_CONNECTION_MODES.PROXY_ONLY
                 } else {
@@ -118,12 +130,8 @@ class FlutterVlessPlugin : FlutterPlugin, ActivityAware, PluginRegistry.Activity
                 val iconResourceName = call.argument<String>("notificationIconResourceName")
                 val iconResourceType = call.argument<String>("notificationIconResourceType")
                 if (iconResourceName != null && iconResourceType != null) {
-                    val resId = context.resources.getIdentifier(iconResourceName, iconResourceType, context.packageName)
-                    // Store this somewhere if needed, or pass in config. 
-                    // For now, we assume XrayConfig will have it set or we set a default.
-                    // But XrayConfig is created in startVless. 
-                    // We might need a global default config or just ignore this for now as startVless creates new config.
-                    // Actually, we should probably store the icon id in AppConfigs or similar if it's global.
+                    AppConfigs.NOTIFICATION_ICON_RESOURCE_NAME = iconResourceName
+                    AppConfigs.NOTIFICATION_ICON_RESOURCE_TYPE = iconResourceType
                 }
                 result.success(null)
             }

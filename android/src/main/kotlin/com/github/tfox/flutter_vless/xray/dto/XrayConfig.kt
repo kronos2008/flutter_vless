@@ -17,6 +17,8 @@ data class XrayConfig(
     var REMARK: String = "",
     var APPLICATION_NAME: String = "Flutter Vless",
     var APPLICATION_ICON: Int = 0,
+    var NOTIFICATION_ICON_RESOURCE_NAME: String = "",
+    var NOTIFICATION_ICON_RESOURCE_TYPE: String = "",
     var NOTIFICATION_DISCONNECT_BUTTON_NAME: String = "Disconnect",
     var DOMAIN_STRATEGY: String = "",
     var ROUTING_DOMAIN_STRATEGY: String = ""

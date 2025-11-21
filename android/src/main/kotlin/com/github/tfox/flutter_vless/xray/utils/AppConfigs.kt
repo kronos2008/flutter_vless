@@ -25,4 +25,6 @@ object AppConfigs {
     var V2RAY_STATE: V2RAY_STATES = V2RAY_STATES.V2RAY_DISCONNECTED
     var V2RAY_CONFIG: com.github.tfox.flutter_vless.xray.dto.XrayConfig? = null
     var V2RAY_CONNECTION_MODE: V2RAY_CONNECTION_MODES = V2RAY_CONNECTION_MODES.VPN_TUN
+    var NOTIFICATION_ICON_RESOURCE_NAME: String = ""
+    var NOTIFICATION_ICON_RESOURCE_TYPE: String = ""
 }
