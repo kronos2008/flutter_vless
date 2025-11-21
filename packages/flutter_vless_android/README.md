@@ -1,15 +1,9 @@
 # flutter_vless_android
 
-A new Flutter plugin project.
+The Android implementation of the `flutter_vless` plugin.
 
-## Getting Started
+## Emulator Support (x86_64)
 
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/to/develop-plugins),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
+To reduce the package size, x86_64 binaries (required for most emulators) have been moved to a separate package: `flutter_vless_android_emulator`.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
+If you need to run your app on an x86_64 emulator, please add `flutter_vless_android_emulator` to your `pubspec.yaml` dependencies.

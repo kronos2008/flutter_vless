@@ -151,6 +151,20 @@ flutter pub get
 
 ---
 
+## Emulator Support (Android x86_64)
+
+To reduce the package size, x86_64 binaries (required for most Android emulators) are split into a separate package.
+
+If you need to run your app on an x86_64 emulator, add `flutter_vless_android_emulator` to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter_vless: ^x.y.z
+  flutter_vless_android_emulator: ^x.y.z # Add this for emulator support
+```
+
+---
+
 ## Platform setup (step-by-step)
 
 Follow the platform steps below — without these the plugin cannot run VPN/Network Extension.
