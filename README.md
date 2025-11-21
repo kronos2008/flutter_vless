@@ -29,6 +29,7 @@
 
 ## Key features
 - Supports iOS and Android out of the box, with routing and similar features available
+- **Supports Android 16KB page size (API 35+)**
 - Run flutter_vless as a local proxy or using the VPN mode (Network Extension / VpnService).
 - Parse VLESS/VMESS share links and generate ready-to-run configurations.
 - Measure server delay (ping) for a configuration.
