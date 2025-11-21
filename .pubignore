@@ -1,1 +1,7 @@
 example/ios/XRay.xcframework/
+example/build/
+example/.dart_tool/
+example/.idea/
+example/.vscode/
+.dart_tool/
+.idea/
