@@ -7,7 +7,7 @@ class FlutterVlessIOS extends VlessPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel('flutter_vless');
-  
+
   /// The event channel for status updates.
   final eventChannel = const EventChannel('flutter_vless/status');
 
@@ -36,7 +36,7 @@ class FlutterVlessIOS extends VlessPlatform {
         ));
       }
     });
-    
+
     await methodChannel.invokeMethod(
       'initializeVless',
       {

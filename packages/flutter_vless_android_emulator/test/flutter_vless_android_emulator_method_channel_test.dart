@@ -5,11 +5,13 @@ import 'package:flutter_vless_android_emulator/flutter_vless_android_emulator_me
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MethodChannelFlutterVlessAndroidEmulator platform = MethodChannelFlutterVlessAndroidEmulator();
+  MethodChannelFlutterVlessAndroidEmulator platform =
+      MethodChannelFlutterVlessAndroidEmulator();
   const MethodChannel channel = MethodChannel('flutter_vless_android_emulator');
 
   setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
       channel,
       (MethodCall methodCall) async {
         return '42';
@@ -18,7 +20,8 @@ void main() {
   });
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 
   test('getPlatformVersion', () async {

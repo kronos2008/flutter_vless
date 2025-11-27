@@ -8,7 +8,8 @@ abstract class FlutterVlessAndroidPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static FlutterVlessAndroidPlatform _instance = MethodChannelFlutterVlessAndroid();
+  static FlutterVlessAndroidPlatform _instance =
+      MethodChannelFlutterVlessAndroid();
 
   /// The default instance of [FlutterVlessAndroidPlatform] to use.
   ///
