@@ -1,3 +1,9 @@
+## 1.0.3
+
+* fix: no such module 'XRay' 
+
+* feat: code formatted
+
 ## 1.0.2
 
 *   **Refactor**: Migrated to a Federated Plugin architecture.
