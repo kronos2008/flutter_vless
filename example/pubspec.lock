@@ -109,7 +109,7 @@ packages:
       path: "../packages/flutter_vless_android_emulator"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "1.0.0"
   flutter_vless_platform_interface:
     dependency: transitive
     description:
