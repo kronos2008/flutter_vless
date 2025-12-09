@@ -3,7 +3,7 @@
 # Configuration
 XRAY_REPO="https://github.com/XTLS/Xray-core"
 TARGET_DIR="src/main/jniLibs"
-NDK_PATH="${ANDROID_NDK_HOME:-/Users/vladislav/Library/Android/sdk/ndk/27.0.12077973}"
+NDK_PATH="${ANDROID_NDK_HOME:-/Users/vladislav/Library/Android/sdk/ndk/28.2.13676358}"
 
 # Check NDK
 if [ ! -d "$NDK_PATH" ]; then
