@@ -1,3 +1,7 @@
+## 1.0.4
+
+* feat: XRay version up
+
 ## 1.0.3
 
 * fix: no such module 'XRay' 
