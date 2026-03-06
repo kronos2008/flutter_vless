@@ -7,9 +7,9 @@ workflows:
     scripts:
       - flutter clean
       - flutter pub get
-      - flutter build apk --debug
+      - cd example && flutter build apk --debug
     artifacts:
-      - build/app/outputs/flutter-apk/app-debug.apk
+      - example/build/app/outputs/flutter-apk/app-debug.apk
     publishing:
       email:
         recipients:
