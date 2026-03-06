@@ -1,21 +1,16 @@
 workflows:
-  default-workflow:
+  viess-workflow:
     name: Build VLESS APK
     max_build_duration: 30
     environment:
       flutter: stable
-      vars:
-        CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # Подготавливаем Flutter проект
       - flutter clean
       - flutter pub get
-      # Собираем APK
       - flutter build apk --debug
     artifacts:
-      # Путь к готовому APK
       - build/app/outputs/flutter-apk/app-debug.apk
     publishing:
       email:
         recipients:
-          - washingtonfizcl@gmail.com  # Замени на свой email
+          - washingtonfizcl@gmail.com
