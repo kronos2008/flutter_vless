@@ -1,19 +1,21 @@
 workflows:
-  vless-workflow:
+  default-workflow:
     name: Build VLESS APK
     max_build_duration: 30
     environment:
+      flutter: stable
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # Переходим в папку android и делаем gradlew исполняемым
-      - cd android && chmod +x gradlew
-      # Возвращаемся в корень и запускаем сборку Flutter-проекта
-      - cd .. && flutter build apk --debug
+      # Подготавливаем Flutter проект
+      - flutter clean
+      - flutter pub get
+      # Собираем APK
+      - flutter build apk --debug
     artifacts:
-      # Путь к готовому APK для Flutter-проекта
+      # Путь к готовому APK
       - build/app/outputs/flutter-apk/app-debug.apk
     publishing:
       email:
         recipients:
-          - washingtonfizcl@gmail.com
+          - washingtonfizcl@gmail.com  # Замени на свой email
